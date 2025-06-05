@@ -34,6 +34,7 @@ OBJS = \
 # perhaps in /opt/riscv/bin
 #TOOLPREFIX = 
 
+TOOLPREFIX = riscv64-unknown-elf-
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
 TOOLPREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
