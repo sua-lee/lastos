@@ -113,6 +113,8 @@ printf(char *fmt, ...)
         s = "(null)";
       for(; *s; s++)
         consputc(*s);
+    } else if(c0 == 'c'){
+      consputc(va_arg(ap, int)); // char는 int로 승격되어 전달됩니다.
     } else if(c0 == '%'){
       consputc('%');
     } else if(c0 == 0){

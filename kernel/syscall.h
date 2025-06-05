@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+
+// 시스템콜 번호
+#define SYS_printpt 22

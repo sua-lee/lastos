@@ -26,6 +26,84 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+// kernel/proc.c 에 포함될 printpt 함수
+
+// 필요한 헤더 파일들이 proc.c 상단에 이미 포함되어 있다고 가정합니다.
+// 예: types.h, param.h, memlayout.h, riscv.h, proc.h, defs.h 등
+
+int printpt(int pid) {
+    struct proc *p;
+    struct proc *target_proc = 0; // 검색된 프로세스를 가리킬 포인터
+    pagetable_t pagetable;        // RISC-V 페이지 테이블 루트 포인터 ( 보통 uint64* )
+    pte_t *pte_addr;              // PTE 자체의 주소 (walk 함수의 반환 값)
+    uint64 va;                    // 순회할 가상 주소
+    uint64 pa;                    // 물리 주소 (pte_val로부터 변환)
+    uint64 pte_val;               // PTE 값 자체
+
+    // 1. PID를 사용하여 프로세스 검색
+    for (p = proc; p < &proc[NPROC]; p++) {
+        // 이 부분은 간략화된 버전입니다. 실제 환경에서는 락(lock) 사용을 고려해야 합니다.
+        if (p->state == UNUSED) {
+            continue;
+        }
+        if (p->pid == pid) {
+            target_proc = p;
+            break;
+        }
+    }
+
+    if (target_proc == 0) {
+        printf("printpt: PID %d를 가진 프로세스를 찾을 수 없습니다.\n", pid);
+        return -1;
+    }
+    p = target_proc; // 찾은 프로세스를 p로 사용
+
+    pagetable = p->pagetable; // 프로세스의 페이지 테이블 루트를 가져옴
+    if (pagetable == 0) {
+        printf("printpt: PID %d (이름: %s) 프로세스에 페이지 테이블이 없습니다.\n", p->pid, p->name);
+        return -1;
+    }
+
+    printf("========== 페이지 테이블 시작 (PID: %d, 이름: %s) ==========\n", p->pid, p->name);
+    printf("페이지 테이블 루트 주소: 0x%p\n", pagetable); // pagetable_t는 포인터이므로 %p 사용 가능
+
+    // 헤더 출력
+    printf("  VPN        Flags (V U/K R W X) PPN\n");
+    printf("-----------------------------------------\n");
+
+    // 2. 사용자 가상 주소 공간 순회 (0부터 MAXVA까지)
+    for (va = 0; va < MAXVA; va += PGSIZE) {
+        pte_addr = walk(pagetable, va, 0); // PTE 주소 찾기
+
+        if (pte_addr == 0) { // 해당 va에 대한 PTE 경로가 없을 수 있음
+            continue;
+        }
+
+        pte_val = *pte_addr; // PTE 값 가져오기
+
+        // PTE_V (Valid) 플래그가 설정된 경우에만 유효한 매핑으로 간주하고 출력
+        if (pte_val & PTE_V) {
+            pa = PTE2PA(pte_val); // PTE 값으로부터 물리 주소를 추출
+
+            // 페이지 테이블 항목 상세 정보 출력
+            // 형식 지정자: %lx (uint64_t 타입의 16진수 출력)
+            // %c 5개에 맞춰 인자 5개 (V, U/K, R, W, X 플래그)
+            printf("  0x%lx    %c   %c   %c   %c   %c       0x%lx\n",
+                    va >> PGSHIFT,              // 가상 페이지 번호 (VPN)
+                    (pte_val & PTE_V) ? 'V' : '-', // Valid 플래그
+                    (pte_val & PTE_U) ? 'U' : 'K', // User('U') / Kernel('K') 플래그
+                    (pte_val & PTE_R) ? 'R' : '-', // Readable 플래그
+                    (pte_val & PTE_W) ? 'W' : '-', // Writable 플래그
+                    (pte_val & PTE_X) ? 'X' : '-', // Executable 플래그
+                    pa >> PGSHIFT               // 물리 프레임 번호 (PPN)
+                   );
+        }
+    }
+
+    printf("========== 페이지 테이블 끝 (PID: %d, 이름: %s) ==========\n", p->pid, p->name);
+    return 0;
+}
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
