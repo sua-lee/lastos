@@ -17,6 +17,10 @@ r_mhartid()
 #define MSTATUS_MPP_U (0L << 11)
 #define MSTATUS_MIE (1L << 3)    // machine-mode interrupt enable.
 
+#define CAUSE_FETCH_PAGE_FAULT 12 // 또는 CAUSE_INSTRUCTION_PAGE_FAULT
+#define CAUSE_LOAD_PAGE_FAULT  13
+#define CAUSE_STORE_PAGE_FAULT 15
+
 static inline uint64
 r_mstatus()
 {

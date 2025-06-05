@@ -12,10 +12,15 @@ int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
-  if(addr >= p->sz || addr+sizeof(uint64) > p->sz) // both tests needed, in case of overflow
+  // 기존: if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
+  // 수정: MAXVA를 기준으로 커널 영역 침범 및 주소 오버플로우 확인
+  if(addr >= MAXVA || addr + sizeof(uint64) > MAXVA || addr + sizeof(uint64) < addr) {
     return -1;
-  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  }
+  // copyin은 해당 주소가 실제로 매핑되어 있고 사용자 권한이 있는지 확인
+  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0) {
     return -1;
+  }
   return 0;
 }
 
@@ -25,8 +30,14 @@ int
 fetchstr(uint64 addr, char *buf, int max)
 {
   struct proc *p = myproc();
-  if(copyinstr(p->pagetable, buf, addr, max) < 0)
+  // 추가: 시작 주소가 MAXVA 이상이면 즉시 실패 처리
+  if(addr >= MAXVA) {
     return -1;
+  }
+  // copyinstr은 문자열을 복사하며 MAXVA 경계 및 매핑, 권한 확인
+  if(copyinstr(p->pagetable, buf, addr, max) < 0) {
+    return -1;
+  }
   return strlen(buf);
 }
 

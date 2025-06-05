@@ -65,7 +65,47 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } // ▼▼▼▼▼ 페이지 폴트 처리 로직 추가 ▼▼▼▼▼
+  else if (r_scause() == CAUSE_LOAD_PAGE_FAULT ||    // Load page fault (원인 코드 13)
+           r_scause() == CAUSE_STORE_PAGE_FAULT ||   // Store/AMO page fault (원인 코드 15)
+           r_scause() == CAUSE_FETCH_PAGE_FAULT) {   // Instruction page fault (원인 코드 12)
+    
+    uint64 va = PGROUNDDOWN(r_stval()); // 폴트가 발생한 가상 주소 (페이지 정렬)
+
+    if (va >= MAXVA) { // 주소가 사용자 공간을 벗어났는지 확인
+      printf("usertrap(): page fault out of user bounds (va 0x%lx)\n", va);
+      setkilled(p); // 프로세스 종료 플래그 설정
+    } else {
+      // Demand Paging: 새 페이지를 할당하고 매핑 (Zero-fill-on-demand 방식)
+      char *mem = kalloc(); // 새 물리 페이지 할당
+      if (mem == 0) {
+        printf("usertrap(): page fault kalloc failed (out of memory) for va 0x%lx\n", va);
+        setkilled(p);
+      } else {
+        memset(mem, 0, PGSIZE); // 할당된 페이지를 0으로 초기화
+
+        // 페이지 권한 설정: 기본적으로 User, Read, Write
+        int perm = PTE_U | PTE_R | PTE_W;
+        if (r_scause() == CAUSE_FETCH_PAGE_FAULT) { // 실행(fetch) 폴트였다면 Execute 권한도 추가
+          perm |= PTE_X;
+        }
+
+        // 새 물리 페이지를 폴트가 발생한 가상 주소에 매핑
+        // mappages 함수는 성공 시 0을 반환합니다.
+        if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, perm | PTE_V) != 0) {
+          kfree(mem); // 매핑 실패 시 할당한 메모리 해제
+          printf("usertrap(): page fault mappages failed for va 0x%lx\n", va);
+          setkilled(p);
+        }
+        // TLB 플러시는 usertrapret에서 satp 변경 후 sfence_vma로 처리되므로
+        // 현재 프로세스에 대해서는 여기서 명시적인 sfence_vma가 필수는 아닐 수 있습니다.
+        // 필요하다면 여기에 sfence_vma(); 를 추가할 수 있습니다.
+      }
+    }
+  }
+  // ▲▲▲▲▲ 페이지 폴트 처리 로직 끝 ▲▲▲▲▲
+  
+  else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);

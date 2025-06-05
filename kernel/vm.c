@@ -168,6 +168,11 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     a += PGSIZE;
     pa += PGSIZE;
   }
+//   if(*pte & PTE_V){ // 이미 유효한 매핑이 있다면
+//   printf("mappages: remap 시도! va=0x%lx, 새 pa=0x%lx, 새 perm=0x%x, 기존 pte=0x%lx\n",
+//          a, pa, perm, *pte);
+//   panic("mappages: remap");
+// }
   return 0;
 }
 
